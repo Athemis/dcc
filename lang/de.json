@@ -167,7 +167,7 @@
   "DCC.AttackDistance": "Angriffsreichweite",
   "DCC.AttackRoll": "Angriffswurf mit {weapon}",
   "DCC.AttackRollDeedEmoteSegment": " mit Kriegerwürfel {deed}",
-  "DCC.AttackRollEmote": "Der Angriff von {actorName} mit {weaponName} trifft RK {rollHTML}{deedRollHTML} und verursacht {damageRollHTML} Schaden!{deedTablePrompt}{crit}{fumble}{twoWeaponNote}",
+  "DCC.AttackRollEmote": "{actorName} führt mit {weaponName} die Aktion „{actionName}“ aus und trifft RK {rollHTML}{deedRollHTML}. Dabei verursacht der Angriff {damageRollHTML} Schaden!{deedTablePrompt}{crit}{fumble}{twoWeaponNote}",
   "DCC.AttackRollInvalidFormulaInline": "<b>Ungültige Angriffsformel „{formula}“</b>",
   "DCC.ArmorDetails": "Rüstungsdetails",
   "DCC.ArmorSettings": "Rüstungseinstellungen",

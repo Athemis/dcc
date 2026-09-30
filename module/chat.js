@@ -3,6 +3,7 @@
 
 import { getCritTableResult, getFumbleTableResult, getNPCFumbleTableResult, getTableFromPath, addDamageFlavorToRolls, wantsModifierDialog } from './utilities.js'
 import ApplyDamageDialog from './apply-damage-dialog.js'
+import { getAttackActionName } from './attack-action.js'
 
 const { TextEditor } = foundry.applications.ux
 
@@ -342,7 +343,7 @@ export const emoteAttackRoll = function (message, html) {
   const damageInlineRoll = message.system.damageInlineRoll?.replaceAll('@ab', message.system.deedDieRollResult) || ''
 
   const attackEmote = game.i18n.format('DCC.AttackRollEmote', {
-    actionName: message.getFlag('dcc', 'isBackstab') ? 'backstabs' : 'attacks',
+    actionName: getAttackActionName(message.getFlag('dcc', 'isBackstab'), game.i18n),
     actorName: message.alias,
     weaponName: message.system.weaponName,
     rollHTML: message.rolls[0].toAnchor().outerHTML,
