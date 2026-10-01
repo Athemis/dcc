@@ -88,11 +88,21 @@ module.exports = async function globalSetup () {
     const userSelect = page.locator('select[name="userid"]')
     const selectVisible = await userSelect.isVisible({ timeout: 20000 }).catch(() => false)
     if (!selectVisible) {
-      throw new Error(
-        `Foundry is up at ${FOUNDRY_URL} but the /join user picker never appeared ` +
-        'within 20s. Make sure the **v14** world is launched and has finished ' +
-        'booting (not the setup/license screen, and not a different world).\n\n' + LAUNCH_HINT
-      )
+      // Foundry 14.368+ replaced the user <select> with a plain username text
+      // input (same reason fixtures.js login() grew a fallback). If THAT input
+      // is present the join page is fine — the GM-liveliness check below only
+      // applies to the legacy select flow; the fixture's gmDisabled guard
+      // covers a GM already in the world on this flow.
+      const usernameInput = page.locator('input[name="username"]')
+      if (!(await usernameInput.isVisible({ timeout: 2000 }).catch(() => false))) {
+        throw new Error(
+          `Foundry is up at ${FOUNDRY_URL} but the /join user picker never appeared ` +
+          'within 20s. Make sure the **v14** world is launched and has finished ' +
+          'booting (not the setup/license screen, and not a different world).\n\n' + LAUNCH_HINT
+        )
+      }
+      await browser.close()
+      return
     }
 
     const gmOption = userSelect.locator('option', { hasText: 'Gamemaster' })

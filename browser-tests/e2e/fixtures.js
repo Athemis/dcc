@@ -49,25 +49,47 @@ async function login (page) {
 
   const isInGame = await page.locator('.game.system-dcc').isVisible({ timeout: 1000 }).catch(() => false)
   if (!isInGame) {
-    const userSelect = page.locator('select[name="userid"]')
-    await userSelect.waitFor({ state: 'visible', timeout: 10000 })
-    // Defense-in-depth vs. globalSetup: if a GM logs in AFTER the smoke check
-    // (or someone bypasses globalSetup), the "Gamemaster" option is disabled
-    // and `selectOption` would hang for the full 60 s fixture timeout. Detect
-    // it and throw the same actionable message immediately.
-    const gmDisabled = await userSelect
-      .locator('option', { hasText: 'Gamemaster' })
-      .first()
-      .evaluate(o => o.disabled)
-      .catch(() => false)
-    if (gmDisabled) {
-      throw new Error(
-        'A Gamemaster is already logged into Foundry (the "Gamemaster" join option ' +
-        'is disabled). Close the Foundry browser tab logged in as GM and re-run — ' +
-        'only one GM session is allowed at a time.'
-      )
+    /*
+     * Legacy builds render the user <select>; Foundry 14.368+ replaced it with
+     * a plain username text input (templates/setup/parts/join-form.hbs:
+     * <input name="username"> + <input name="password"> + <button name="join">)
+     * — `select[name="userid"]` does not exist in those builds at all, so the
+     * select wait times out everywhere before any test runs. Both flows end
+     * with button[name="join"]; the v14.368 flow authenticates by name
+     * (foundry.mjs resolves the user id from the name server-side, and the e2e
+     * Gamemaster user has no access key).
+     */
+    if (await page.locator('select[name="userid"]').waitFor({ state: 'visible', timeout: 5000 })
+      .then(() => true).catch(() => false)) {
+      const userSelect = page.locator('select[name="userid"]')
+      // Defense-in-depth vs. globalSetup: if a GM logs in AFTER the smoke check
+      // (or someone bypasses globalSetup), the "Gamemaster" option is disabled
+      // and `selectOption` would hang for the full 60 s fixture timeout. Detect
+      // it and throw the same actionable message immediately.
+      const gmDisabled = await userSelect
+        .locator('option', { hasText: 'Gamemaster' })
+        .first()
+        .evaluate(o => o.disabled)
+        .catch(() => false)
+      if (gmDisabled) {
+        throw new Error(
+          'A Gamemaster is already logged into Foundry (the "Gamemaster" join option ' +
+          'is disabled). Close the Foundry browser tab logged in as GM and re-run — ' +
+          'only one GM session is allowed at a time.'
+        )
+      }
+      await page.selectOption('select[name="userid"]', { label: 'Gamemaster' })
+    } else {
+      if (!(await page.locator('input[name="username"]').waitFor({ state: 'visible', timeout: 10000 })
+        .then(() => true).catch(() => false))) {
+        throw new Error(
+          'The /join page rendered neither the legacy user <select> nor the v14 ' +
+          'username input — the world may still be booting, or Foundry changed ' +
+          'the join flow again.'
+        )
+      }
+      await page.locator('input[name="username"]').fill('Gamemaster')
     }
-    await page.selectOption('select[name="userid"]', { label: 'Gamemaster' })
     await page.click('button[name="join"]')
     await page.waitForSelector('.game.system-dcc', { timeout: 30000 })
   }

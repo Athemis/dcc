@@ -137,9 +137,16 @@ test.describe('Mighty Deeds E2E Tests', () => {
     const isInGame = await page.locator('.game.system-dcc').isVisible({ timeout: 1000 }).catch(() => false)
 
     if (!isInGame) {
-      const userSelect = page.locator('select[name="userid"]')
-      await userSelect.waitFor({ state: 'visible', timeout: 10000 })
-      await page.selectOption('select[name="userid"]', { label: 'Gamemaster' })
+      /* Foundry 14.368+ replaced the user <select> with a username text input;
+         authenticate by name there (foundry.mjs resolves the user id from the
+         name server-side; the e2e Gamemaster user has no access key). */
+      if (await page.locator('select[name="userid"]').isVisible().catch(() => false)) {
+        await page.selectOption('select[name="userid"]', { label: 'Gamemaster' })
+      } else {
+        await page.locator('input[name="username"]').first()
+          .waitFor({ state: 'visible', timeout: 10000 }).catch(() => {})
+        await page.locator('input[name="username"]').fill('Gamemaster')
+      }
       await page.click('button[name="join"]')
       await page.waitForSelector('.game.system-dcc', { timeout: 30000 })
     }
