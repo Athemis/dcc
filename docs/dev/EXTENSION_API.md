@@ -556,3 +556,23 @@ updated.
 **No DCC system change required after this slice** — `critResult`
 and `fumbleResult` have always been emitted alongside the shim
 aliases; this migration just flips the reader.
+
+## Core config keys the system owns
+
+A module that assigns one of these keys in its own `init` **replaces**
+the DCC class — module `init` runs after the system's, last write wins —
+and silently drops the DCC behavior. Extend the DCC class instead:
+
+| Key | Set by | DCC class | Behavior it carries |
+|---|---|---|---|
+| `CONFIG.Token.objectClass` | `module/token-vision.mjs` | `DCCToken` | Owned tokens keep providing vision while another token is controlled (#872) |
+| `CONFIG.Token.rulerClass` | `module/token-ruler.mjs` | `DCCTokenRuler` | Token ruler colors each segment by the actor's DCC movement allowance |
+
+```js
+const { objectClass } = CONFIG.Token
+class MyToken extends objectClass {
+  /** @override */
+  _isVisionSource () { return super._isVisionSource() || this.myOwnRule() }
+}
+CONFIG.Token.objectClass = MyToken
+```

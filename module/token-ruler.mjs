@@ -9,12 +9,14 @@
  * ruler colors each segment against that budget: within the first action
  * green, each further allowed action warmer, past every action red.
  *
+ * The action count comes from the derived `attributes.actionDice.list`, which
+ * exists only while the world's `multipleActionDice` switch is on — a world
+ * that opted out (the default) keeps its single move, matching the switch's
+ * "when off, the system behaves exactly as it does today" contract.
+ *
  * Only the segment style is overridden. The ruler's distance/cost labels, the
  * free measuring ruler, and the token's movement history stay core's.
  */
-
-import DCCActor from './actor.js'
-import { parseActionDice } from './vendor/dcc-core-lib/index.js'
 
 /** Allowed bands, first action → last allowed action, then over budget. */
 const BAND_COLORS = [0x2ecc71, 0xf1c40f, 0xe67e22]
@@ -34,13 +36,8 @@ export function movementBands (actor) {
   const system = actor?.system
   const speed = parseInt(system?.attributes?.speed?.value)
   if (!Number.isFinite(speed) || (speed <= 0)) return null
-  // `config.actionDice` is the authoring string ("1d20,1d16"); the shown
-  // `attributes.actionDice.value` keeps only the first die.
-  const authoring = DCCActor.selectActionDiceAuthoring({
-    config: system?.config?.actionDice,
-    value: system?.attributes?.actionDice?.value
-  })
-  return { speed, actions: Math.max(parseActionDice(authoring || '').length, 1) }
+  const actions = system?.attributes?.actionDice?.list?.length ?? 1
+  return { speed, actions: Math.max(actions, 1) }
 }
 
 /**

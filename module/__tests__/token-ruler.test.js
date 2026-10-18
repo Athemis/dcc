@@ -19,25 +19,25 @@ const ORANGE = 0xe67e22
 const RED = 0xe74c3c
 
 /** Minimal actor shape read by movementBands. */
-function makeActor ({ speed = '30', config, value = '1d20' } = {}) {
-  return { system: { attributes: { speed: { value: speed }, actionDice: { value } }, config: { actionDice: config } } }
+function makeActor ({ speed = '30', list } = {}) {
+  return { system: { attributes: { speed: { value: speed }, actionDice: { list } } } }
 }
 
 describe('movementBands', () => {
   test('reads the DCC movement rate and the action-dice count', () => {
-    expect(movementBands(makeActor({ config: '1d20,1d16' }))).toEqual({ speed: 30, actions: 2 })
+    expect(movementBands(makeActor({ list: [{ die: 'd20' }, { die: 'd16' }] }))).toEqual({ speed: 30, actions: 2 })
   })
 
-  test('treats an actor with one action die as a single move', () => {
-    expect(movementBands(makeActor({ config: '1d20' }))).toEqual({ speed: 30, actions: 1 })
+  test('an opted-out world (no derived list) has a single move', () => {
+    expect(movementBands(makeActor())).toEqual({ speed: 30, actions: 1 })
   })
 
   test('strips units from the speed value', () => {
     expect(movementBands(makeActor({ speed: "20'" }))?.speed).toBe(20)
   })
 
-  test('counts "Act 3d20" as three actions', () => {
-    expect(movementBands(makeActor({ config: '1d20', value: '3d20' }))?.actions).toBe(3)
+  test('counts every derived slot', () => {
+    expect(movementBands(makeActor({ list: [{}, {}, {}] }))?.actions).toBe(3)
   })
 
   test('returns null when the actor cannot move ("MV none")', () => {
@@ -115,12 +115,12 @@ describe('registerTokenRuler', () => {
   }
 
   test('registers a TokenRuler subclass', () => {
-    const ruler = makeRuler(makeActor({ config: '1d20,1d16' }))
+    const ruler = makeRuler(makeActor({ list: [{}, {}] }))
     expect(Object.getPrototypeOf(ruler.constructor)).toBe(CoreRuler)
   })
 
   test('colors the segment by cumulative cost, keeping width and alpha', () => {
-    const ruler = makeRuler(makeActor({ config: '1d20,1d16' }))
+    const ruler = makeRuler(makeActor({ list: [{}, {}] }))
     expect(ruler._getSegmentStyle({ measurement: { cost: 20 }, actionConfig: {} })).toEqual({
       width: 4, color: GREEN, alpha: 1
     })
@@ -128,7 +128,7 @@ describe('registerTokenRuler', () => {
   })
 
   test('leaves invisible segments (non-visualized actions) alone', () => {
-    const ruler = makeRuler(makeActor({ config: '1d20,1d16' }))
+    const ruler = makeRuler(makeActor({ list: [{}, {}] }))
     ruler.coreStyle = { width: 0 }
     expect(ruler._getSegmentStyle({ measurement: { cost: 20 }, actionConfig: {} })).toEqual({ width: 0 })
   })
@@ -139,7 +139,7 @@ describe('registerTokenRuler', () => {
   })
 
   test('a single-action actor has no second band to move into', () => {
-    const ruler = makeRuler(makeActor({ config: '1d20' }))
+    const ruler = makeRuler(makeActor())
     const colorAt = cost => ruler._getSegmentStyle({ measurement: { cost }, actionConfig: {} }).color
     expect(colorAt(25)).toBe(GREEN)
     expect(colorAt(35)).toBe(RED)

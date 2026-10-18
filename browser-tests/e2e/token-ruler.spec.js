@@ -4,11 +4,16 @@ const { expect, createSessionTest, significantConsoleErrors } = require('./fixtu
 /**
  * DCC movement bands on the token ruler (module/token-ruler.mjs).
  *
- * A character may move its normal speed per action, so the ruler's segment
- * colors follow `speed × action dice`: within the first action green, the last
- * allowed action amber, past every action red. The probes go through core's
- * real measurement (`TokenDocument#measureMovementPath`) on a live grid, and
- * `TokenRuler#refresh` runs the actual drag-time draw path.
+ * A character may move its normal speed per action, so the ruler colors each
+ * segment against `speed × action dice`: within the first action green, the
+ * last allowed action amber, past every action red. The action count comes
+ * from the derived `attributes.actionDice.list`, so a world that leaves the
+ * `multipleActionDice` switch off (the default) keeps a single move even for
+ * an actor whose stored action-dice expression names several dice.
+ *
+ * The probes go through core's real measurement
+ * (`TokenDocument#measureMovementPath`) on a live grid, and `TokenRuler#refresh`
+ * runs the actual drag-time draw path.
  */
 
 const consoleErrors = []
@@ -31,7 +36,7 @@ test.describe('Token ruler movement bands', () => {
     expect(await page.evaluate(() => CONFIG.Token.rulerClass?.name)).toBe('DCCTokenRuler')
   })
 
-  test('colors ruler segments by speed × action dice on a live grid', async ({ page }) => {
+  test('follows the multipleActionDice switch on a live grid', async ({ page }) => {
     const result = await page.evaluate(async () => {
       // Probe scene with the default 5ft/100px grid, so 1ft = 20px.
       const scene = await Scene.create({
@@ -47,107 +52,83 @@ test.describe('Token ruler movement bands', () => {
         }
         await new Promise(resolve => setTimeout(resolve, 200))
       }
-
-      // 30ft speed, two action dice (6th-level warrior) → 30ft then 60ft.
-      const actor = await Actor.create({
-        name: 'DCC Ruler Probe',
-        type: 'Player',
-        system: {
-          config: { actionDice: '1d20,1d16' },
-          attributes: { speed: { value: '30', base: '30' } }
-        }
-      })
-      const [tokenDoc] = await scene.createEmbeddedDocuments('Token', [
-        { name: 'Probe', actorId: actor.id, x: 500, y: 500, width: 1, height: 1 }
-      ])
-      const drawDeadline = Date.now() + 5000
-      while (Date.now() < drawDeadline && !(game.canvas.tokens.get(tokenDoc.id)?.ruler)) {
-        await new Promise(resolve => setTimeout(resolve, 50))
-      }
-      const token = game.canvas.tokens.get(tokenDoc.id)
-
+      const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
       const feetPx = canvas.grid.size / canvas.grid.distance
-      const doc = token.document
-      const waypointAt = feet => ({
-        x: doc.x + (feet * feetPx),
-        y: doc.y
-      })
-      const probe = feet => {
-        // Core's own measurement: no cost function ⇒ cost === distance in feet
-        const measurement = doc.measureMovementPath([{ x: doc.x, y: doc.y }, waypointAt(feet)], {})
-        const waypoint = measurement.waypoints.at(-1)
+
+      /** 30ft-speed actor + token + a probe that colors one segment via the live ruler. */
+      const probeFor = async (actionDice, y) => {
+        const actor = await Actor.create({
+          name: `DCC Ruler Probe (${actionDice})`,
+          type: 'Player',
+          system: {
+            config: { actionDice },
+            attributes: { speed: { value: '30', base: '30' } }
+          }
+        })
+        const [tokenDoc] = await scene.createEmbeddedDocuments('Token', [
+          { name: 'Probe', actorId: actor.id, x: 500, y, width: 1, height: 1 }
+        ])
+        const drawDeadline = Date.now() + 5000
+        while (Date.now() < drawDeadline && !game.canvas.tokens.get(tokenDoc.id)?.ruler) await sleep(50)
+        const token = game.canvas.tokens.get(tokenDoc.id)
         return {
-          cost: waypoint.cost,
-          color: token.ruler._getSegmentStyle({
-            measurement: waypoint,
-            actionConfig: CONFIG.Token.movement.actions.walk
-          }).color
+          token,
+          list: token.actor.system.attributes.actionDice.list?.length ?? null,
+          colorAt: feet => {
+            const doc = token.document
+            // Core's own measurement: no cost function ⇒ cost === distance in feet
+            const measurement = doc.measureMovementPath(
+              [{ x: doc.x, y: doc.y }, { x: doc.x + (feet * feetPx), y: doc.y }], {})
+            return token.ruler._getSegmentStyle({
+              measurement: measurement.waypoints.at(-1),
+              actionConfig: CONFIG.Token.movement.actions.walk
+            }).color
+          }
         }
       }
 
-      // The drag-time draw path: 45ft of pending movement, then tear down.
-      token.ruler.refresh({
-        passedWaypoints: [],
-        pendingWaypoints: [
-          { x: doc.x, y: doc.y, action: 'walk', explicit: true },
-          { ...waypointAt(45), action: 'walk', explicit: true }
-        ],
-        plannedMovement: {}
-      })
-      token.ruler.clear()
+      const switchWasOn = game.settings.get('dcc', 'multipleActionDice')
+      const off = await probeFor('1d20,1d16', 500)
+      await game.settings.set('dcc', 'multipleActionDice', true)
+      let on
+      try {
+        on = await probeFor('1d20,1d16', 800)
 
-      // One action die → the first band is the only allowed one
-      const oneActionActor = await Actor.create({
-        name: 'DCC Ruler Probe (1 action)',
-        type: 'Player',
-        system: {
-          config: { actionDice: '1d20' },
-          attributes: { speed: { value: '30', base: '30' } }
-        }
-      })
-      const [oneActionDoc] = await scene.createEmbeddedDocuments('Token', [
-        { name: 'Probe (1 action)', actorId: oneActionActor.id, x: 500, y: 800, width: 1, height: 1 }
-      ])
-      const oneActionWait = Date.now() + 5000
-      while (Date.now() < oneActionWait && !game.canvas.tokens.get(oneActionDoc.id)?.ruler) {
-        await new Promise(resolve => setTimeout(resolve, 50))
-      }
-      const oneActionToken = game.canvas.tokens.get(oneActionDoc.id)
-      const oneActionProbe = feet => {
-        const oneDoc = oneActionToken.document
-        const measurement = oneDoc.measureMovementPath([
-          { x: oneDoc.x, y: oneDoc.y },
-          { x: oneDoc.x + (feet * feetPx), y: oneDoc.y }
-        ], {})
-        return oneActionToken.ruler._getSegmentStyle({
-          measurement: measurement.waypoints.at(-1),
-          actionConfig: CONFIG.Token.movement.actions.walk
-        }).color
+        // The drag-time draw path: 45ft of pending movement, then tear down.
+        const doc = on.token.document
+        on.token.ruler.refresh({
+          passedWaypoints: [],
+          pendingWaypoints: [
+            { x: doc.x, y: doc.y, action: 'walk', explicit: true },
+            { x: doc.x + (45 * feetPx), y: doc.y, action: 'walk', explicit: true }
+          ],
+          plannedMovement: {}
+        })
+        on.token.ruler.clear()
+      } finally {
+        await game.settings.set('dcc', 'multipleActionDice', switchWasOn)
       }
 
       return {
-        rulerClass: token.ruler.constructor.name,
-        speed: token.actor.system.attributes.speed.value,
-        first: probe(25),
-        second: probe(45),
-        overBudget: probe(65),
-        singleAction: { within: oneActionProbe(25), over: oneActionProbe(35), far: oneActionProbe(60) }
+        switchWasOn,
+        off: { list: off.list, first: off.colorAt(25), over: off.colorAt(35), far: off.colorAt(60) },
+        on: { list: on.list, first: on.colorAt(25), second: on.colorAt(45), overBudget: on.colorAt(65) }
       }
     })
 
-    // The derived speed reached the actor, and both bands match the allowance
-    expect(Number(result.speed)).toBe(30)
-    expect(result.first.cost).toBe(25)
-    expect(result.second.cost).toBe(45)
-    expect(result.overBudget.cost).toBe(65)
-    expect(result.rulerClass).toBe('DCCTokenRuler')
-    expect(result.first.color).toBe(GREEN)
-    expect(result.second.color).toBe(AMBER)
-    expect(result.overBudget.color).toBe(RED)
-    // One action die: 30ft is the whole allowance, so even 35ft is over budget
-    expect(result.singleAction.within).toBe(GREEN)
-    expect(result.singleAction.over).toBe(RED)
-    expect(result.singleAction.far).toBe(RED)
+    // World default: the switch is off, so the stored "1d20,1d16" still buys one
+    // move — 35ft is already over budget
+    expect(result.switchWasOn).toBe(false)
+    expect(result.off.list).toBeNull()
+    expect(result.off.first).toBe(GREEN)
+    expect(result.off.over).toBe(RED)
+    expect(result.off.far).toBe(RED)
+
+    // Switch on: two derived actions → 30ft, then 60ft
+    expect(result.on.list).toBe(2)
+    expect(result.on.first).toBe(GREEN)
+    expect(result.on.second).toBe(AMBER)
+    expect(result.on.overBudget).toBe(RED)
     expect(significantConsoleErrors(consoleErrors)).toEqual([])
   })
 })
