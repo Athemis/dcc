@@ -50,6 +50,7 @@ import { registerJournalEnrichers } from './journal-enrichers.mjs'
 import { registerDCCSidebarTab } from './sidebar-tab.mjs'
 import { DeathClockTracker, registerDeathClockTracker } from './death-clock-tracker.mjs'
 import { registerTokenVision } from './token-vision.mjs'
+import { registerTokenRuler } from './token-ruler.mjs'
 import { getMacroActor, getMacroOptions, rollDCCWeaponMacro } from './macros.mjs'
 import { processSpellCheck } from './spell-check-processor.mjs'
 import { applySpellburn, buildSpellburnTerm } from './spellburn.mjs'
@@ -350,6 +351,7 @@ export async function onInit () {
   registerDCCSidebarTab()
   registerDeathClockTracker()
   registerTokenVision()
+  registerTokenRuler()
   registerJournalEnrichers()
   // Before the template await: a template-loading failure must not leave the
   // early settings unregistered while DCCToken (which reads one) is live.

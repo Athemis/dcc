@@ -70,6 +70,7 @@ vi.mock('../death-clock-tracker.mjs', () => ({
   registerDeathClockTracker: vi.fn()
 }))
 vi.mock('../token-vision.mjs', () => ({ registerTokenVision: vi.fn() }))
+vi.mock('../token-ruler.mjs', () => ({ registerTokenRuler: vi.fn() }))
 vi.mock('../macros.mjs', () => ({ getMacroActor: vi.fn(), getMacroOptions: vi.fn(), rollDCCWeaponMacro: vi.fn() }))
 vi.mock('../spell-check-processor.mjs', () => ({ processSpellCheck: vi.fn() }))
 vi.mock('../table-loading.mjs', () => ({ getSkillTable: vi.fn() }))
@@ -330,6 +331,9 @@ describe('onInit', () => {
     // The owned-token-vision Token class registered (issue #872)
     const { registerTokenVision } = await import('../token-vision.mjs')
     expect(registerTokenVision).toHaveBeenCalledTimes(1)
+    // The DCC movement-band ruler registered
+    const { registerTokenRuler } = await import('../token-ruler.mjs')
+    expect(registerTokenRuler).toHaveBeenCalledTimes(1)
     // The journal roll-link enrichers registered (issue #794)
     const { registerJournalEnrichers } = await import('../journal-enrichers.mjs')
     expect(registerJournalEnrichers).toHaveBeenCalledTimes(1)
