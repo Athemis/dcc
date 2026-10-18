@@ -96,12 +96,42 @@ test.describe('Token ruler movement bands', () => {
       })
       token.ruler.clear()
 
+      // One action die → the first band is the only allowed one
+      const oneActionActor = await Actor.create({
+        name: 'DCC Ruler Probe (1 action)',
+        type: 'Player',
+        system: {
+          config: { actionDice: '1d20' },
+          attributes: { speed: { value: '30', base: '30' } }
+        }
+      })
+      const [oneActionDoc] = await scene.createEmbeddedDocuments('Token', [
+        { name: 'Probe (1 action)', actorId: oneActionActor.id, x: 500, y: 800, width: 1, height: 1 }
+      ])
+      const oneActionWait = Date.now() + 5000
+      while (Date.now() < oneActionWait && !game.canvas.tokens.get(oneActionDoc.id)?.ruler) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      const oneActionToken = game.canvas.tokens.get(oneActionDoc.id)
+      const oneActionProbe = feet => {
+        const oneDoc = oneActionToken.document
+        const measurement = oneDoc.measureMovementPath([
+          { x: oneDoc.x, y: oneDoc.y },
+          { x: oneDoc.x + (feet * feetPx), y: oneDoc.y }
+        ], {})
+        return oneActionToken.ruler._getSegmentStyle({
+          measurement: measurement.waypoints.at(-1),
+          actionConfig: CONFIG.Token.movement.actions.walk
+        }).color
+      }
+
       return {
         rulerClass: token.ruler.constructor.name,
         speed: token.actor.system.attributes.speed.value,
         first: probe(25),
         second: probe(45),
-        overBudget: probe(65)
+        overBudget: probe(65),
+        singleAction: { within: oneActionProbe(25), over: oneActionProbe(35), far: oneActionProbe(60) }
       }
     })
 
@@ -114,6 +144,10 @@ test.describe('Token ruler movement bands', () => {
     expect(result.first.color).toBe(GREEN)
     expect(result.second.color).toBe(AMBER)
     expect(result.overBudget.color).toBe(RED)
+    // One action die: 30ft is the whole allowance, so even 35ft is over budget
+    expect(result.singleAction.within).toBe(GREEN)
+    expect(result.singleAction.over).toBe(RED)
+    expect(result.singleAction.far).toBe(RED)
     expect(significantConsoleErrors(consoleErrors)).toEqual([])
   })
 })

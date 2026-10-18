@@ -137,4 +137,11 @@ describe('registerTokenRuler', () => {
     const ruler = makeRuler(makeActor({ speed: 'none' }))
     expect(ruler._getSegmentStyle({ measurement: { cost: 20 }, actionConfig: {} }).color).toBe(0x000000)
   })
+
+  test('a single-action actor has no second band to move into', () => {
+    const ruler = makeRuler(makeActor({ config: '1d20' }))
+    const colorAt = cost => ruler._getSegmentStyle({ measurement: { cost }, actionConfig: {} }).color
+    expect(colorAt(25)).toBe(GREEN)
+    expect(colorAt(35)).toBe(RED)
+  })
 })
