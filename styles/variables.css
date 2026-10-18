@@ -78,6 +78,16 @@
   --system-flat-button-border-color: #c9c7b8;
   --system-two-weapon-primary-color: #4caf50;
   --system-two-weapon-secondary-color: #d32f2f;
+  /* Token-ruler movement bands (module/token-ruler.mjs): the label's distance
+     text takes one of these per allowed action, warm colors for the later
+     allowed moves and red once the allowance is spent. Same values color the
+     swept grid cells on the canvas — canvas fills take numbers, so the BANDS
+     table in that module mirrors this block. Not theme-dependent: the labels
+     sit on core's dark chip and the cells on the scene art in both themes. */
+  --system-movement-move-color: #2ecc71;
+  --system-movement-extra-color: #f1c40f;
+  --system-movement-third-color: #e67e22;
+  --system-movement-over-color: #e74c3c;
 
   /* Responsive-tabs overflow dropdown (light defaults — dark theme
      overrides below). */

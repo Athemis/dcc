@@ -6,21 +6,29 @@
  * A character moves its normal speed per action and may spend further actions
  * on movement, so the distance allowed in one round is `speed × action dice`
  * (DCC core rulebook, "Movement" and "Actions"). While a token is dragged the
- * ruler colors each segment against that budget: within the first action
- * green, each further allowed action warmer, past every action red.
+ * ruler colors the swept grid cells and the label's distance text against that
+ * budget: first action green, each further allowed action warmer, past every
+ * action red.
  *
  * The action count comes from the derived `attributes.actionDice.list`, which
  * exists only while the world's `multipleActionDice` switch is on — a world
  * that opted out (the default) keeps its single move, matching the switch's
  * "when off, the system behaves exactly as it does today" contract.
  *
- * Only the segment style is overridden. The ruler's distance/cost labels, the
- * free measuring ruler, and the token's movement history stay core's.
+ * The path line keeps core's color — the moving user's — so a GM watching
+ * several players' planned movement can still tell whose is whose. The label
+ * text is colored by a class on the label chip (styles/base.css, values from
+ * the `--system-movement-*` variables); the band colors below mirror those
+ * variables, since canvas fills take numbers.
  */
 
 /** Allowed bands, first action → last allowed action, then over budget. */
-const BAND_COLORS = [0x2ecc71, 0xf1c40f, 0xe67e22]
-const OVER_BUDGET_COLOR = 0xe74c3c
+const BANDS = [
+  { color: 0x2ecc71, cssClass: 'move-range' },
+  { color: 0xf1c40f, cssClass: 'extra-move-range' },
+  { color: 0xe67e22, cssClass: 'third-move-range' }
+]
+const OVER_BUDGET = { color: 0xe74c3c, cssClass: 'out-of-range' }
 
 /**
  * Movement allowance of an actor.
@@ -41,19 +49,19 @@ export function movementBands (actor) {
 }
 
 /**
- * Segment color for a cumulative movement cost.
+ * The band a cumulative movement cost falls into.
  *
  * @param {{speed: number, actions: number}|null} bands  From {@link movementBands}
  * @param {number} cost  Cumulative cost in scene units (terrain multipliers included)
- * @returns {number|null}  `null` to keep core's color
+ * @returns {{color: number, cssClass: string}|null}  `null` to keep core's styling
  */
-export function movementBandColor (bands, cost) {
+export function movementBand (bands, cost) {
   if (!bands || !Number.isFinite(cost)) return null
   // A segment ending exactly on a limit belongs to the band it completes; the
   // epsilon keeps that boundary off the next band despite float error.
   const band = Math.max(0, Math.floor((cost / bands.speed) - 1e-9))
-  if (band >= bands.actions) return OVER_BUDGET_COLOR
-  return BAND_COLORS[Math.min(band, BAND_COLORS.length - 1)]
+  if (band >= bands.actions) return OVER_BUDGET
+  return BANDS[Math.min(band, BANDS.length - 1)]
 }
 
 /**
@@ -63,11 +71,19 @@ export function movementBandColor (bands, cost) {
 export function registerTokenRuler () {
   class DCCTokenRuler extends foundry.canvas.placeables.tokens.TokenRuler {
     /** @override */
-    _getSegmentStyle (waypoint) {
-      const style = super._getSegmentStyle(waypoint)
-      if (!style.width) return style
-      const color = movementBandColor(movementBands(this.token?.actor), waypoint.measurement?.cost)
-      return color === null ? style : { ...style, color }
+    _getGridHighlightStyle (waypoint, offset) {
+      const style = super._getGridHighlightStyle(waypoint, offset)
+      if (!(style.alpha > 0)) return style
+      const band = movementBand(movementBands(this.token?.actor), waypoint.measurement?.cost)
+      return band ? { ...style, color: band.color } : style
+    }
+
+    /** @override */
+    _getWaypointLabelContext (waypoint, state) {
+      const context = super._getWaypointLabelContext(waypoint, state)
+      const band = movementBand(movementBands(this.token?.actor), waypoint.measurement?.cost)
+      if (band && context) context.cssClass = `${context.cssClass ?? ''} ${band.cssClass}`.trim()
+      return context
     }
   }
   CONFIG.Token.rulerClass = DCCTokenRuler

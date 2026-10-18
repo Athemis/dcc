@@ -184,6 +184,35 @@ async function openActorSheet (page, actorName) {
   await page.waitForTimeout(1500)
 }
 
+/**
+ * Create a fresh probe scene on a plain 5ft grid and view it, so a spec can
+ * measure distances deterministically without depending on whatever scene the
+ * world happens to be showing. The grid is 50px per space (10px per foot): long
+ * drags stay inside the viewport — 45ft is 450px, not the 900px a 100px grid
+ * would need. Returns after the canvas reports the scene as ready; callers then
+ * use `game.canvas.scene` in their own evaluate.
+ *
+ * Scenes are deliberately NOT deleted by the auto-fixture (deleting the viewed
+ * scene re-inits the canvas mid-run) — see `cleanWorldState` above.
+ */
+async function createProbeScene (page, name) {
+  await page.evaluate(async name => {
+    const scene = await Scene.create({
+      name,
+      width: 4000,
+      height: 3000,
+      grid: { type: 1, size: 50, distance: 5, units: 'ft' }
+    })
+    const viewDeadline = Date.now() + 15000
+    while (Date.now() < viewDeadline && !(game.canvas.ready && game.canvas.scene?.id === scene.id)) {
+      if (game.canvas.scene?.id !== scene.id) {
+        try { await scene.view() } catch { /* still loading — retry */ }
+      }
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+  }, name)
+}
+
 module.exports = {
   base,
   expect,
@@ -191,6 +220,7 @@ module.exports = {
   login,
   assertFoundryUp,
   openActorSheet,
+  createProbeScene,
   significantConsoleErrors,
   TRANSIENT_NETWORK_ERRORS,
   FOUNDRY_URL

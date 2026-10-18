@@ -360,3 +360,28 @@
   }
 }
 
+
+/* ----------------------------------------- */
+/*  Token ruler movement bands               */
+/* ----------------------------------------- */
+
+/* Band class added by the DCC token ruler (module/token-ruler.mjs) to the
+   waypoint label chip; the same class drives the swept grid cell color on the
+   canvas. The path line keeps core's user color. */
+.system-dcc .waypoint-label {
+  &.move-range .total-measurement {
+    color: var(--system-movement-move-color);
+  }
+
+  &.extra-move-range .total-measurement {
+    color: var(--system-movement-extra-color);
+  }
+
+  &.third-move-range .total-measurement {
+    color: var(--system-movement-third-color);
+  }
+
+  &.out-of-range .total-measurement {
+    color: var(--system-movement-over-color);
+  }
+}
